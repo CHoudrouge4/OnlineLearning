@@ -10,6 +10,9 @@ from skmultiflow.lazy import SAMKNNClassifier
 from skmultiflow.trees import HoeffdingAdaptiveTreeClassifier
 from skmultiflow.meta import AdaptiveRandomForestClassifier
 from skmultiflow.meta import AdditiveExpertEnsembleClassifier
+from MajorityClassifier import *
+from NoChangeClassifier import *
+import matplotlib.pyplot as plt
 
 def get_stream(file_name):
     #file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
@@ -28,48 +31,81 @@ def get_stream(file_name):
     return DataStream(data=data, y=labels), n, m
 
 def run(model, stream, n):
+    if not stream.has_more_samples():
+        print('NO more samples!!!!')
+        stream.restart()
+        print('Restarting...')
+    print('Start a run')
     n_samples = 1000
     max_samples = n
     X, Y = stream.next_sample(1000)
     print(X.shape)
     model.partial_fit(X, Y)
+    predicted_label = model.predict(X)
     accs = []
     while n_samples < max_samples and stream.has_more_samples():
-        new_x, new_y = stream.next_sample(500)
+        new_x, new_y = stream.next_sample() # take a sumple
 
-        X = numpy.vstack([X, new_x])
-        Y = numpy.append(Y, new_y)
-        print(X.shape)
-        print(Y.shape)
-        X_window = X[-1000:, :]
+        X = numpy.vstack([X, new_x]) # append the sample to X
+        Y = numpy.append(Y, new_y)   # append the lable
+
+        # getting the last 1000 labels
         Y_window = Y[-1000:]
 
-        print('Windows shape')
-        print(X_window.shape)
-        print(Y_window.shape)
+        # getteing the prediction for the new instance.
+        y_pred = model.predict(new_x) # it returns a numpy array with one element
+        #print(y_pred)
 
-        Y_pred = model.predict(X_window)
+        # saving the result of the prediction
+        predicted_label = numpy.append(predicted_label, y_pred[0])
 
-        print(accuracy_score(Y_window, Y_pred))
-        accs.append(accuracy_score(Y_window, Y_pred))
-        model.partial_fit(X_window, Y_window)
+        # getting the accuracy of the last one 1000 elements
+        accs.append(accuracy_score(Y_window, predicted_label[-1000:]))
+        # training with class label
+        model.partial_fit(new_x, new_y)
         n_samples += 1
     return accs
 
+
+def plotting(accs, names, colors):
+    #print(accs)
+    fig, ax = plt.subplots()
+    #for ((acc, name), c) in zip(zip(accs, names), colors):
+    #    ax.plot(acc, c, label=name)
+    for i in range(len(accs)):
+        ax.plot(accs[i], color=colors[i], label=names[i])
+    ax.set(xlabel='Number of Points', ylabel='Accuracy')
+    leg = ax.legend();
+    plt.show()
+
+def experiment_1(models, names, colors, stream, n):
+    accs = [run(m, stream, n) for m in models]
+    print(len(accs))
+    plotting(accs, names, colors)
+
 def main():
-    file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
-    dwm = DynamicWeightedMajorityClassifier()
+    #file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
+    #file_name = './streams/INSECTS-gradual_balanced_norm.csv'
+    #file_name = './streams/INSECTS-incremental_balanced_norm.csv'
+    mc = MajorityClassifier()
+    nc = NoChangeClassifier()
     ht = HoeffdingTreeClassifier()
-    SKNN = SAMKNNClassifier()
+    SKNN = SAMKNNClassifier(n_neighbors=5)
     HAD = HoeffdingAdaptiveTreeClassifier()
     ARF = AdaptiveRandomForestClassifier()
     AEC = AdditiveExpertEnsembleClassifier()
-    Stream, n, m = get_stream(file_name)
+    stream, n, m = get_stream(file_name)
 
-    models = [dwm, ht, SKNN, HAD, ARF, AEC]
+    models = [mc, nc] #, ht, SKNN, HAD, ARF, AEC]
+    #models = [mc, nc]
+    names = ['MC', 'NC']#, 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
+    colors = ['r', 'b']#, 'g', 'y', 'm', 'b', 'c']
+    experiment_1(models, names, colors, stream, n)
+#    accs = run(nc, stream, n)
 
-    evaluator = EvaluatePrequential(max_samples=n, batch_size=1000, output_file='result.csv', show_plot=True, metrics=['accuracy'])
-    evaluator.evaluate(stream=Stream, model=models, model_names=['dwm', 'ht', 'SKNN', 'HAD', 'ARF', 'AEC'])
+
+    # evaluator = EvaluatePrequential(max_samples=n, batch_size=1000, output_file='result.csv', show_plot=True, metrics=['accuracy'])
+    # evaluator.evaluate(stream=Stream, model=models, model_names=['dwm', 'ht', 'SKNN', 'HAD', 'ARF', 'AEC'])
 
 if __name__ == "__main__":
     main()
