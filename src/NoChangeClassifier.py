@@ -2,7 +2,7 @@ from typing import Callable, Any, Iterable
 
 class NoChangeClassifier:
 
-    last_class = 0
+    last_class = 0 # store the last seen class
 
     def predict1(self, x):
         return self.last_class

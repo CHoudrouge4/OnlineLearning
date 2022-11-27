@@ -38,10 +38,14 @@ def run(model, stream, n):
     print('Start a run')
     n_samples = 1000
     max_samples = n
+
+    # pretraiing
     X, Y = stream.next_sample(1000)
     print(X.shape)
     model.partial_fit(X, Y)
     predicted_label = model.predict(X)
+    ##################
+
     accs = []
     while n_samples < max_samples and stream.has_more_samples():
         new_x, new_y = stream.next_sample() # take a sumple
@@ -84,7 +88,7 @@ def experiment_1(models, names, colors, stream, n):
     plotting(accs, names, colors)
 
 def main():
-    #file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
+    file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
     #file_name = './streams/INSECTS-gradual_balanced_norm.csv'
     #file_name = './streams/INSECTS-incremental_balanced_norm.csv'
     mc = MajorityClassifier()
@@ -96,13 +100,11 @@ def main():
     AEC = AdditiveExpertEnsembleClassifier()
     stream, n, m = get_stream(file_name)
 
-    models = [mc, nc] #, ht, SKNN, HAD, ARF, AEC]
+    models = [mc, nc , ht, SKNN, HAD, ARF, AEC]
     #models = [mc, nc]
-    names = ['MC', 'NC']#, 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
-    colors = ['r', 'b']#, 'g', 'y', 'm', 'b', 'c']
+    names = ['MC', 'NC', 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
+    colors = ['r', 'b', 'g', 'y', 'm', 'b', 'c']
     experiment_1(models, names, colors, stream, n)
-#    accs = run(nc, stream, n)
-
 
     # evaluator = EvaluatePrequential(max_samples=n, batch_size=1000, output_file='result.csv', show_plot=True, metrics=['accuracy'])
     # evaluator.evaluate(stream=Stream, model=models, model_names=['dwm', 'ht', 'SKNN', 'HAD', 'ARF', 'AEC'])
