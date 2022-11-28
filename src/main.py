@@ -13,6 +13,9 @@ from skmultiflow.meta import AdditiveExpertEnsembleClassifier
 from MajorityClassifier import *
 from NoChangeClassifier import *
 import matplotlib.pyplot as plt
+from skmultiflow.drift_detection.adwin import ADWIN
+from skmultiflow.drift_detection import DDM
+from skmultiflow.drift_detection.hddm_a import HDDM_A
 
 def get_stream(file_name):
     #file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
@@ -39,16 +42,30 @@ def run(model, stream, n):
     n_samples = 1000
     max_samples = n
 
+    adwin = HDDM_A()
+    #adwin = ADWIN(delta=0.0002)
+
     # pretraiing
     X, Y = stream.next_sample(1000)
     print(X.shape)
     model.partial_fit(X, Y)
     predicted_label = model.predict(X)
+
+    changes = [0]
+    for i in range(1000):
+        adwin.add_element(int(Y[i]))
+        if adwin.detected_change():
+            changes.append(i)
     ##################
 
     accs = []
     while n_samples < max_samples and stream.has_more_samples():
+
         new_x, new_y = stream.next_sample() # take a sumple
+
+        adwin.add_element(int(new_y))
+        if adwin.detected_change():
+            changes.append(n_samples)
 
         X = numpy.vstack([X, new_x]) # append the sample to X
         Y = numpy.append(Y, new_y)   # append the lable
@@ -68,29 +85,42 @@ def run(model, stream, n):
         # training with class label
         model.partial_fit(new_x, new_y)
         n_samples += 1
-    return accs
+    changes.append(max_samples)
+    return accs, changes
 
 
-def plotting(accs, names, colors):
+def plotting(accs_changes, names, colors):
     #print(accs)
     fig, ax = plt.subplots()
     #for ((acc, name), c) in zip(zip(accs, names), colors):
     #    ax.plot(acc, c, label=name)
+    accs = []
+    changes = []
+    for i in range(len(accs_changes)):
+        acc, change = accs_changes[i]
+        accs.append(acc)
+        changes.append(change)
+
     for i in range(len(accs)):
         ax.plot(accs[i], color=colors[i], label=names[i])
+        for j in range(len(changes[i]) - 1):
+            if j % 2 == 0:
+                ax.fill_between(changes[i][j:j+2], 0, 1, color='green', alpha=0.5, transform=ax.get_xaxis_transform())
+            else:
+                ax.fill_between(changes[i][j:j+2], 0, 1, color='red', alpha=0.5, transform=ax.get_xaxis_transform())
     ax.set(xlabel='Number of Points', ylabel='Accuracy')
     leg = ax.legend();
     plt.show()
 
 def experiment_1(models, names, colors, stream, n):
-    accs = [run(m, stream, n) for m in models]
-    print(len(accs))
-    plotting(accs, names, colors)
+    accs_changes = [run(m, stream, n) for m in models]
+    print(len(accs_changes))
+    plotting(accs_changes, names, colors)
 
 def main():
-    file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
+    #file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
     #file_name = './streams/INSECTS-gradual_balanced_norm.csv'
-    #file_name = './streams/INSECTS-incremental_balanced_norm.csv'
+    file_name = './streams/INSECTS-incremental_balanced_norm.csv'
     mc = MajorityClassifier()
     nc = NoChangeClassifier()
     ht = HoeffdingTreeClassifier()
@@ -100,10 +130,13 @@ def main():
     AEC = AdditiveExpertEnsembleClassifier()
     stream, n, m = get_stream(file_name)
 
-    models = [mc, nc , ht, SKNN, HAD, ARF, AEC]
+    #models = [mc, nc , ht, SKNN, HAD, ARF, AEC]
+    models = [ht]
     #models = [mc, nc]
-    names = ['MC', 'NC', 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
-    colors = ['r', 'b', 'g', 'y', 'm', 'b', 'c']
+    #names = ['MC', 'NC', 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
+    names = ['HT']
+    #colors = ['r', 'b', 'g', 'y', 'm', 'b', 'c']
+    colors = ['m']
     experiment_1(models, names, colors, stream, n)
 
     # evaluator = EvaluatePrequential(max_samples=n, batch_size=1000, output_file='result.csv', show_plot=True, metrics=['accuracy'])
