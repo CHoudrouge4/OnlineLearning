@@ -45,6 +45,8 @@ def run(model, stream, n):
 
     #adwin = HDDM_A()
     adwin = ADWIN(delta=0.0002)
+    #adwin = DDM()
+    alt = HoeffdingTreeClassifier()
 
     # pretraiing
     X, Y = stream.next_sample(1000)
@@ -60,6 +62,7 @@ def run(model, stream, n):
     ##################
 
     accs = []
+    switch_model = False
     while n_samples < max_samples and stream.has_more_samples():
 
         new_x, new_y = stream.next_sample() # take a sumple
@@ -67,6 +70,8 @@ def run(model, stream, n):
         adwin.add_element(int(new_y))
         if adwin.detected_change():
             changes.append(n_samples)
+            switch_model = True
+
 
         X = numpy.vstack([X, new_x]) # append the sample to X
         Y = numpy.append(Y, new_y)   # append the lable
@@ -85,6 +90,15 @@ def run(model, stream, n):
         # training with class label
         model.partial_fit(new_x, new_y)
         n_samples += 1
+
+        if switch_model:
+            X_window = X[-1000:, :]
+            print(X_window.shape)
+            alt.partial_fit(X_window, Y_window)
+            model = alt
+            switch_model = False
+
+
     changes.append(max_samples)
     return accs, changes
 
@@ -124,9 +138,9 @@ def experiment_1(models, names, colors, stream, n):
 
 # the main method
 def main():
-    file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
+    #file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
     #file_name = './streams/INSECTS-gradual_balanced_norm.csv'
-    #file_name = './streams/INSECTS-incremental_balanced_norm.csv'
+    file_name = './streams/INSECTS-incremental_balanced_norm.csv'
     mc = MajorityClassifier()
     nc = NoChangeClassifier()
     ht = HoeffdingTreeClassifier()
@@ -136,13 +150,13 @@ def main():
     AEC = AdditiveExpertEnsembleClassifier()
     stream, n, m = get_stream(file_name)
 
-    models = [mc, nc , ht, SKNN, HAD, ARF, AEC]
-    #models = [ht]
+    #models = [mc, nc , ht, SKNN, HAD, ARF, AEC]
+    models = [ht]
     #models = [mc, nc]
-    names = ['MC', 'NC', 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
-    #names = ['HT']
-    colors = ['r', 'b', 'g', 'y', 'm', 'b', 'c']
-    #colors = ['m']
+    #names = ['MC', 'NC', 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
+    names = ['HT']
+    #colors = ['r', 'b', 'g', 'y', 'm', 'b', 'c']
+    colors = ['m']
     experiment_1(models, names, colors, stream, n)
 
 if __name__ == "__main__":
