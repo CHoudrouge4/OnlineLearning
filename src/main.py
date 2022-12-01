@@ -16,9 +16,10 @@ import matplotlib.pyplot as plt
 from skmultiflow.drift_detection.adwin import ADWIN
 from skmultiflow.drift_detection import DDM
 from skmultiflow.drift_detection.hddm_a import HDDM_A
+from statistics import mean
 
+# get the data stream from the file called file_name
 def get_stream(file_name):
-    #file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
     data = get_data(file_name)
     print(data.shape)
     data[:, 33] = prepare_targets(data[:, 33])
@@ -42,8 +43,8 @@ def run(model, stream, n):
     n_samples = 1000
     max_samples = n
 
-    adwin = HDDM_A()
-    #adwin = ADWIN(delta=0.0002)
+    #adwin = HDDM_A()
+    adwin = ADWIN(delta=0.0002)
 
     # pretraiing
     X, Y = stream.next_sample(1000)
@@ -51,7 +52,7 @@ def run(model, stream, n):
     model.partial_fit(X, Y)
     predicted_label = model.predict(X)
 
-    changes = [0]
+    changes = [0] # stores the changes point by the drift detector.
     for i in range(1000):
         adwin.add_element(int(Y[i]))
         if adwin.detected_change():
@@ -75,7 +76,6 @@ def run(model, stream, n):
 
         # getteing the prediction for the new instance.
         y_pred = model.predict(new_x) # it returns a numpy array with one element
-        #print(y_pred)
 
         # saving the result of the prediction
         predicted_label = numpy.append(predicted_label, y_pred[0])
@@ -101,6 +101,10 @@ def plotting(accs_changes, names, colors):
         accs.append(acc)
         changes.append(change)
 
+    for (acc, name) in zip(accs, names):
+        print(name)
+        print(mean(acc))
+
     for i in range(len(accs)):
         ax.plot(accs[i], color=colors[i], label=names[i])
         for j in range(len(changes[i]) - 1):
@@ -112,15 +116,17 @@ def plotting(accs_changes, names, colors):
     leg = ax.legend();
     plt.show()
 
+#experiment function, calls run and do the plotting funciton
 def experiment_1(models, names, colors, stream, n):
     accs_changes = [run(m, stream, n) for m in models]
     print(len(accs_changes))
     plotting(accs_changes, names, colors)
 
+# the main method
 def main():
-    #file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
+    file_name = './streams/INSECTS-abrupt_balanced_norm.csv'
     #file_name = './streams/INSECTS-gradual_balanced_norm.csv'
-    file_name = './streams/INSECTS-incremental_balanced_norm.csv'
+    #file_name = './streams/INSECTS-incremental_balanced_norm.csv'
     mc = MajorityClassifier()
     nc = NoChangeClassifier()
     ht = HoeffdingTreeClassifier()
@@ -130,17 +136,14 @@ def main():
     AEC = AdditiveExpertEnsembleClassifier()
     stream, n, m = get_stream(file_name)
 
-    #models = [mc, nc , ht, SKNN, HAD, ARF, AEC]
-    models = [ht]
+    models = [mc, nc , ht, SKNN, HAD, ARF, AEC]
+    #models = [ht]
     #models = [mc, nc]
-    #names = ['MC', 'NC', 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
-    names = ['HT']
-    #colors = ['r', 'b', 'g', 'y', 'm', 'b', 'c']
-    colors = ['m']
+    names = ['MC', 'NC', 'HT', 'SKNN', 'HAD', 'ARF', 'AEC']
+    #names = ['HT']
+    colors = ['r', 'b', 'g', 'y', 'm', 'b', 'c']
+    #colors = ['m']
     experiment_1(models, names, colors, stream, n)
-
-    # evaluator = EvaluatePrequential(max_samples=n, batch_size=1000, output_file='result.csv', show_plot=True, metrics=['accuracy'])
-    # evaluator.evaluate(stream=Stream, model=models, model_names=['dwm', 'ht', 'SKNN', 'HAD', 'ARF', 'AEC'])
 
 if __name__ == "__main__":
     main()
